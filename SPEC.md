@@ -11,9 +11,10 @@
 
 ## 1. Problem statement
 
-The Turtle Beach Victrix Gambit Prime wired controller (USB-C) enumerates
-correctly and is detected by Steam, but produces **zero input events**. No
-button, stick, trigger, or D-pad input reaches any application.
+The Turtle Beach Victrix Gambit Prime wired controller (USB-C) reaches
+`Opened` — Steam holds it open with a valid mapping — but never reaches
+`Streaming`: it produces **zero input events**. No button, stick, trigger, or
+D-pad input reaches any application. See `CONTEXT.md` for these state names.
 
 This is *not* a Steam configuration problem. It is a kernel driver problem.
 
@@ -114,8 +115,8 @@ Only the data never arrives.
 - Flatpak sandbox device access — `devices=all` + `/run/udev:ro` present
 - Exclusive grab starving readers — `EVIOCGRAB` **succeeded**, so nothing
   held the device exclusively during capture
-- Steam Input misconfiguration — config sets are empty (normal default),
-  detection and mapping confirmed in Steam's own log
+- Steam Input misconfiguration — config sets are empty (normal default);
+  `Opened` and mapped, confirmed in Steam's own log
 - USB autosuspend — `power/control=on`, `runtime_status=active`
 - Cable/power — `bMaxPower 500mA`, clean enumeration, correct serial
 
@@ -136,23 +137,40 @@ state machine (ACK, IDENTIFY, announce handling) via DKMS.
 | Kernel 7.1 is very new | DKMS build may fail against 7.1 headers | **Primary risk.** May need a patch |
 | `xone` replaces `xpad` | Other Xbox pads move to `xone` | DS4 (`054C:09CC`, `hid_playstation`) unaffected |
 | Kernel upgrade | Module must rebuild | See §6 — this is the tracked concern |
+| **Mapping drift** | Saved Steam configs stop matching | `xone` changes the device name and SDL GUID, so Steam sees a *new* controller. The existing `Generic X-Box pad` / GUID `030086656f0e00005002000000040000` / `configset_e6f-250-992ee0.vdf` will no longer apply. Expect to redo per-game bindings — this will look like a failed fix at exactly the wrong moment |
 
 ---
 
 ## 5. Acceptance criteria
 
-A fix is complete only when **all** of these pass.
+The goal of this repo is **playing Proton games with this pad** — so AC3 is the
+definition of done. AC1 and AC2 are leading indicators: they prove the driver
+problem is solved, which is necessary but **not sufficient**. A pad can be
+`Streaming` perfectly and still be unplayable through Steam Input. See
+`CONTEXT.md`.
+
+### Primary — definition of done
+
+- **AC3 — Playable.** Input is correctly mapped and usable in-game in **both**:
+  - **Cyberpunk 2077** (appid `1091500`)
+  - **S.T.A.L.K.E.R. 2: Heart of Chornobyl** (appid `1643320`)
+
+  Two titles rather than one because they exercise different paths: a saved
+  per-game Steam Input config vs a fresh one. Also confirm the Steam Big Picture
+  controller test registers every control.
+
+- **AC4 — Durability.** AC3 still passes after a reboot into a **newly
+  installed kernel**, with no manual intervention. See §6.
+
+### Leading indicators — necessary, not sufficient
 
 - **AC1 — Wire level.** `usbmon` capture shows `INPUT_REPORT` (GIP cmd `0x20`)
   count **> 0** from the controller.
 - **AC2 — evdev level.** A 60 s capture on the controller's `event*` node
   while all controls are exercised yields events for: both sticks (`ABS_X/Y`,
   `ABS_RX/RY`), both triggers (`ABS_Z`, `ABS_RZ`), D-pad
-  (`ABS_HAT0X/Y`), and all 11 buttons.
-- **AC3 — Steam level.** Input is registered in Steam Big Picture controller
-  test, and in at least one Proton game.
-- **AC4 — Durability.** Survives a reboot into a **newly installed kernel**
-  with no manual intervention. See §6.
+  (`ABS_HAT0X/Y`), and all 11 buttons. This is what `verify.sh` checks —
+  it **cannot** verify AC3.
 
 ---
 
@@ -172,9 +190,10 @@ A new kernel will not have the module until DKMS rebuilds it. Requirements:
   dkms status && lsmod | grep -E 'xone|xpad'
   ```
 - **R4** — A failed rebuild must be **loud**, not silent. A silent DKMS
-  failure presents identically to the original bug (pad detected, no input),
-  which will cost time to re-diagnose. Decide on a check at boot or a
-  documented first-step-after-reboot.
+  failure presents *identically* to the original bug: `xpad` reclaims the pad
+  and it reaches `Advertised` but never `Streaming`. Indistinguishable without
+  running `verify.sh`, so it will cost time to re-diagnose. Decide on a check at
+  boot or a documented first-step-after-reboot.
 - **R5** — Secure Boot is currently **disabled**. If it is ever enabled, DKMS
   modules require MOK enrollment and signing, or they will silently fail to
   load. Re-check this assumption after any firmware change.
@@ -242,12 +261,23 @@ sudo sh -c "echo 'module xpad -p' > /sys/kernel/debug/dynamic_debug/control"
 
 ---
 
-## 9. Long-term resolution
+## 9. Upstream dependency
 
-The durable fix is an upstream `xpad` device-table entry plus correct generic
-GIP ACK/IDENTIFY handling — removing the need for an out-of-tree module
-entirely. Out of scope for now; recorded so the DKMS dependency is understood
-as a workaround, not an endpoint.
+**Out of scope: this repo does not aim to fix `xpad` for everyone.** Its goal is
+making this pad playable on this box.
+
+That said, the underlying gap is an upstream one — `xpad` lacks a device-table
+entry for `0250` and lacks correct generic GIP ACK/IDENTIFY handling. If a
+future kernel fixes it, the `xone` dependency and its whole §6 rebuild burden
+can be dropped. Worth re-checking on major kernel bumps:
+
+```bash
+# does this kernel's xpad know the device yet?
+modinfo xpad | grep -i '0250'
+```
+
+Recorded so the DKMS dependency is understood as a workaround with a possible
+expiry, not a permanent fixture.
 
 ---
 
@@ -343,3 +373,17 @@ Append an entry per working session. Keep newest last.
   on submitted patches.
 - `LICENSE` replaced with canonical GPLv2 text (md5 `b234ee4d69f5fce4486a80fdaf4a4263`),
   taken from a local distro copy rather than fetched.
+
+### 2026-08-25 — Scope pinned to gaming
+- Scope decided: this repo tracks making the pad **playable in Proton games**,
+  not fixing `xpad` upstream. §9 reframed from "long-term resolution" to
+  "upstream dependency".
+- AC3 promoted to definition of done and given named titles — Cyberpunk 2077
+  (`1091500`) and S.T.A.L.K.E.R. 2 (`1643320`). AC1/AC2 demoted to leading
+  indicators; `verify.sh` covers AC2 only and cannot verify AC3.
+- Added `CONTEXT.md` glossary. The five bring-up states (`Enumerated`, `Bound`,
+  `Advertised`, `Opened`, `Streaming`) plus `Playable` replace the overloaded
+  word "detected", which hid the bug: four states green, no data.
+- Added **Mapping drift** risk — `xone` changes the device name and SDL GUID, so
+  Steam sees a new controller and saved per-game configs stop matching.
+- Added ADR 0001 (GPL-2.0-only).
