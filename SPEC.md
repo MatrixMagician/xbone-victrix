@@ -549,3 +549,16 @@ Steam has generated a fresh mapping. Saved bindings under
   onto a new kernel has happened yet. §6 R1-R5 remain live.
 - The §13 hang and input lag were never driver-level. Whether `xone` changes
   them is unknown. Issue #6.
+
+### 2026-08-25 — Post-install game results
+- **Cyberpunk 2077 works.** AC3 half met. The earlier hang happened under the
+  §13 wedged-`xpad` state and has not recurred under `xone`.
+- **S.T.A.L.K.E.R. 2 works with Steam Input disabled**, but buttons and
+  shoulder buttons lag until another input occurs. Driver exonerated by
+  measurement: LB/RB emit standalone evdev transitions with sticks untouched,
+  66 transitions, 7.8 ms minimum gap. Fault is above the driver. Issue #6.
+- **Correction.** An earlier note called S.T.A.L.K.E.R. 2 GameInput-only. Wrong.
+  The shipping binary references both `GameInput.dll` and
+  `XInput1_3/1_4/9_1_0.dll`; the XInput fallback is what works today.
+- Host SDL3 3.4.14 sees the pad correctly: `is_gamepad=True`, full mapping,
+  `SDL_GetGamepads` returns 1, identical with HIDAPI on and off.
