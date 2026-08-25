@@ -133,8 +133,8 @@ state machine (ACK, IDENTIFY, announce handling) via DKMS.
 
 | Risk | Impact | Notes |
 |---|---|---|
-| Upstream `medusalix/xone` is archived | Must pick a maintained fork | Verify fork activity before selecting |
-| Kernel 7.1 is very new | DKMS build may fail against 7.1 headers | **Primary risk.** May need a patch |
+| Upstream `medusalix/xone` is in maintenance mode | Must use the designated successor fork | **Not archived** (verified via GitHub API), but its README declares maintenance mode and points at `dlundqvist/xone`. Last commit 2025-12-21, last release v0.3 (2022) |
+| ~~Kernel 7.1 is very new~~ | ~~DKMS build may fail~~ | **Retired 2026-08-25.** `dlundqvist/xone` master `f2aa9fe` builds clean against 7.1.9-200.fc44 with gcc 16 — 9 modules, 0 errors. Reproduce with `./probe-build.sh https://github.com/dlundqvist/xone` |
 | `xone` replaces `xpad` | Other Xbox pads move to `xone` | DS4 (`054C:09CC`, `hid_playstation`) unaffected |
 | Kernel upgrade | Module must rebuild | See §6 — this is the tracked concern |
 | **Mapping drift** | Saved Steam configs stop matching | `xone` changes the device name and SDL GUID, so Steam sees a *new* controller. The existing `Generic X-Box pad` / GUID `030086656f0e00005002000000040000` / `configset_e6f-250-992ee0.vdf` will no longer apply. Expect to redo per-game bindings — this will look like a failed fix at exactly the wrong moment |
@@ -200,7 +200,11 @@ A new kernel will not have the module until DKMS rebuilds it. Requirements:
 
 ### Open questions
 
-- [ ] Which `xone` fork is maintained and builds against kernel 7.1?
+- [x] **Which `xone` fork is maintained and builds against kernel 7.1?**
+      `dlundqvist/xone`, the successor designated by `medusalix/xone`'s README.
+      v0.5.8 (2026-03-17), active issue triage through Aug 2026. Master
+      `f2aa9fe` builds clean against 7.1.9-200.fc44 with gcc 16 (9 modules,
+      0 errors), verified locally via `./probe-build.sh`. Tracked in issue #1.
 - [ ] Does `xone` handle the interface-1 audio endpoints, or leave them unbound?
 - [ ] Is a `xone`-specific udev rule needed, or is `uaccess` tagging automatic?
 - [ ] Does the pad expose its extra Victrix features (profile switches,
@@ -387,3 +391,24 @@ Append an entry per working session. Keep newest last.
 - Added **Mapping drift** risk — `xone` changes the device name and SDL GUID, so
   Steam sees a new controller and saved per-game configs stop matching.
 - Added ADR 0001 (GPL-2.0-only).
+
+### 2026-08-25 — Fork selected, alternatives tested, issues filed
+- **Fork chosen: `dlundqvist/xone`.** Build verified locally, not inferred from
+  a README. `probe-build.sh` added as the rerunnable proof.
+- **Corrected:** `medusalix/xone` is **not archived** (GitHub API,
+  `"archived": false`). It is in maintenance mode and points at the fork above.
+  The earlier "archived" claim in §4 was wrong.
+- **Kernel-7.1 risk retired.** It was the primary risk; a compiler settled it.
+- **Alternative tested and rejected: SDL3 userspace GIP.** Steam's bundled
+  SDL3 does contain the GIP driver (`SDL_hidapi_gip`), so a zero-install path
+  looked plausible. Blacklisting `xpad` to free the interface produced no SDL
+  claim in 25 s — only `hid_read failure` as Steam dropped the old node.
+  Untested variant: Steam restarting while the interface is free, since SDL may
+  only enumerate libusb at startup.
+- **Alternative found, not yet tested: one-line `xpad` patch.** `xpad` already
+  carries the missing ACK+IDENTIFY as `xboxone_hori_ack_id`, gated to
+  `0e6f:0165` and `0f0d:0067`. Adding `0e6f:0250` may be sufficient. Issue #5.
+- **§9 check run for the first time:** kernel 7.1.9's `xpad` still has no `0250`
+  alias. Three `0e6f` entries, all vendor wildcards. Gap still open upstream.
+- Issues #1-#5 filed with `ready-for-agent` / `ready-for-human` labels and
+  native GitHub blocking edges.
