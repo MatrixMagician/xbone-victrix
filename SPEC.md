@@ -412,3 +412,72 @@ Append an entry per working session. Keep newest last.
   alias. Three `0e6f` entries, all vendor wildcards. Gap still open upstream.
 - Issues #1-#5 filed with `ready-for-agent` / `ready-for-human` labels and
   native GitHub blocking edges.
+
+---
+
+## 13. Intermittent Streaming without a driver change (2026-08-25)
+
+The pad reached `Streaming` on stock `xpad`, with nothing installed. This
+section records what was measured, because it is easy to mistake for a fix.
+
+### What was measured
+
+| Observation | Value |
+|---|---|
+| Wire rate while working | 208 Hz (`bInterval 4` = 250 Hz ceiling) |
+| URB errors | none |
+| Retry loop while working | none — host sends nothing |
+| Idle drift | 0 events in 10 s |
+| Controls confirmed | all 6 analog axes, D-pad (`ABS_HAT0X/Y`), buttons |
+| `xone` / DKMS | **not installed** |
+| Bound driver | `xpad`, unchanged |
+
+Input reports are **change-driven**, not continuous. A passive capture at rest
+shows nothing even when the link is healthy.
+
+### Cause
+
+The GIP handshake completed. `xpad` did not change; the pad's state machine did.
+Repeated failed init attempts wedge it, and no amount of retrying recovers it
+because `xpad` keeps sending the same packets it never ACKs or IDENTIFYs.
+Leaving the device completely unclaimed lets it reset.
+
+The white LED is the hardware-side signal that init passed.
+
+### Durability: it does not survive re-enumeration
+
+`durability-test.sh` — **0/5 cycles** reached `Streaming`; each returned
+`auth_retries=6`, the announce loop from §3. A reboot is a re-enumeration.
+
+**Caveat, recorded deliberately.** A later single re-enumeration produced
+`auth_retries=0`. So the wedge is **not** reliably reproducible on every
+replug. Do not treat "breaks on every replug" as established.
+
+### Recovery ritual, and why ordering is load-bearing
+
+`recover.sh`. The sequence is:
+
+1. blacklist `xpad`, `rmmod`, re-enumerate — pad sits unclaimed
+2. hold ~25 s so its state machine resets
+3. remove blacklist, `modprobe xpad`
+4. **re-enumerate again** so `xpad` probes a *fresh arrival*
+
+Step 4 is not optional. Loading `xpad` against an **already-present** device
+fails; probing a **freshly arriving** device succeeds. Both were measured.
+
+This is a workaround. It does not survive a replug and is not a substitute
+for #1.
+
+### Verification trap
+
+`auth_retries=0` does **not** prove success. `xpad` also goes quiet when it
+gives up on a wedged pad. This produced a false positive during diagnosis, and
+`durability-test.sh` originally encoded the same error. Silence proves nothing.
+**Only input reports prove `Streaming`** — always confirm with `./verify.sh`.
+
+### Still unexplained
+
+The Cyberpunk 2077 hang and S.T.A.L.K.E.R. 2 input lag. The wire link was clean
+while both occurred, so they sit above the driver in the Steam Input and Proton
+chain. The DS4 avoids them and takes a shorter natively-supported path. Not
+diagnosed; needs a capture taken during an actual hang.
