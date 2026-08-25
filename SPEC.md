@@ -562,3 +562,17 @@ Steam has generated a fresh mapping. Saved bindings under
   `XInput1_3/1_4/9_1_0.dll`; the XInput fallback is what works today.
 - Host SDL3 3.4.14 sees the pad correctly: `is_gamepad=True`, full mapping,
   `SDL_GetGamepads` returns 1, identical with HIDAPI on and off.
+
+### 2026-08-25 — S.T.A.L.K.E.R. 2 isolated to a game bug
+- **Controlled experiment settles it.** A DS4 (`054C:09CC`, `hid_playstation`,
+  HID not GIP, no shared code path with the Victrix) shows the **same** input
+  delay in S.T.A.L.K.E.R. 2, while working correctly in Cyberpunk on the same
+  Proton build. Steam Input disabled throughout; delay present on both Proton
+  Experimental and 10.0-4.
+- Every layer below the game is eliminated by measurement: driver, evdev, host
+  SDL3, Proton version, and the controller hardware itself.
+- **AC3 is unachievable as written.** It requires both titles, but one is
+  blocked by a third party's bug. Proposed split into AC3a (Cyberpunk, gating,
+  PASS) and AC3b (S.T.A.L.K.E.R. 2, tracked, not gating). Scope call pending.
+- Issue #6 closed. Cyberpunk hang resolved by `xone`; it only ever occurred in
+  the §13 wedged state.
