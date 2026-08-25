@@ -481,3 +481,71 @@ The Cyberpunk 2077 hang and S.T.A.L.K.E.R. 2 input lag. The wire link was clean
 while both occurred, so they sit above the driver in the Steam Input and Proton
 chain. The DS4 avoids them and takes a shorter natively-supported path. Not
 diagnosed; needs a capture taken during an actual hang.
+
+---
+
+## 14. Resolution: xone installed (2026-08-25)
+
+`dlundqvist/xone` v0.5.8 installed via DKMS. AC1 and AC2 pass. The workaround
+in §13 is obsolete.
+
+### Mechanism, confirmed at the wire
+
+The §3 diagnosis said `xpad` never sends `ACK` (0x01) or `IDENTIFY` (0x04).
+A usbmon capture of `xone` performing the same init proves the contrast:
+
+| Packet (host -> pad) | `xpad` | `xone` |
+|---|---|---|
+| **ACK** | **0** | **14** |
+| **IDENTIFY** | **0** | **1** |
+| AUTHENTICATE | 6, unanswered | 12, with 25 replies |
+| ANNOUNCE from pad | 4, looping | **1**, acknowledged |
+| INPUT_REPORT | **0** | streams |
+
+The pad announces once, is acknowledged, completes a bidirectional auth
+exchange, and enters `Streaming`. `xpad` produced a monologue; `xone` produces
+a conversation.
+
+### Install state
+
+| Item | Value |
+|---|---|
+| DKMS | `xone/0.5.8, 7.1.9-200.fc44.x86_64: installed` |
+| Modules | `xone_gip`, `xone_wired`, `xone_gip_gamepad` (9 built, signed) |
+| Driver on `:1.0` | `xone-wired` |
+| Driver on `:1.1` | `xone-wired` (headset iface; `xpad` left this unbound) |
+| Blacklist | `/etc/modprobe.d/xone-blacklist.conf` (`xpad`, `mt76x2u`) |
+| DS4 `054C:09CC` | unaffected, still `hid_playstation` |
+
+`mt76x2u` was checked before install. This host's MediaTek device `0e8d:0717`
+is Bluetooth on `btusb`, and WiFi is `mt7925e`. The blacklist is inert here.
+**Re-check if MediaTek USB WiFi is ever added.**
+
+### Durability: the §13 failure is fixed
+
+| Test | Workaround (§13) | `xone` |
+|---|---|---|
+| Re-enumeration cycles reaching bound state | **0/5** | **5/5** |
+| Recovery ritual needed | yes | **no** |
+
+AC2 confirmed by `./verify.sh` after 5 consecutive replugs. All 8 axes and the
+D-pad were confirmed in a separate run on `xone`.
+
+### Mapping drift: measured, not predicted
+
+| | Before (`xpad`) | After (`xone`) |
+|---|---|---|
+| Name | `Generic X-Box pad` | `Microsoft Xbox Controller` |
+| SDL GUID | `030086656f0e00005002000000040000` | `0600b7926f0e00005002000000020000` |
+| Buttons mapped | 11 | 12, adds `misc1:b11` |
+
+Steam has generated a fresh mapping. Saved bindings under
+`configset_e6f-250-992ee0.vdf` will not carry over. `misc1` is a twelfth button
+`xpad` never exposed.
+
+### Still open
+
+- **AC3 / AC4 unproven.** Playable in both titles is untested, and no reboot
+  onto a new kernel has happened yet. §6 R1-R5 remain live.
+- The §13 hang and input lag were never driver-level. Whether `xone` changes
+  them is unknown. Issue #6.
