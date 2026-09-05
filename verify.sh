@@ -23,6 +23,10 @@ for d in /sys/bus/usb/devices/*/; do
 done
 echo "sysfs:  ${SYS:-unresolved}"
 [ -n "$SYS" ] && echo "driver: $(basename "$(readlink -f "${SYS}"*:1.0/driver 2>/dev/null)")"
+# xone: gip0 without gip0.0 = driver fine, pad silent (SPEC.md §15)
+if [ -d "${SYS}"*:1.0/gip0 ] && ! ls -d "${SYS}"*:1.0/gip0/gip0.* >/dev/null 2>&1; then
+  echo "gip:    gip0 present, NO CLIENT - pad is powered off. Press the Xbox button and re-run."; exit 2
+fi
 
 # resolve event node by id-link, not a fixed eventN (it moves across replug)
 EV=$(readlink -f /dev/input/by-id/*Victrix*event-joystick 2>/dev/null | head -1)
