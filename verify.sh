@@ -24,7 +24,8 @@ done
 echo "sysfs:  ${SYS:-unresolved}"
 [ -n "$SYS" ] && echo "driver: $(basename "$(readlink -f "${SYS}"*:1.0/driver 2>/dev/null)")"
 # xone: gip0 without gip0.0 = driver fine, pad silent (SPEC.md §15)
-if [ -d "${SYS}"*:1.0/gip0 ] && ! ls -d "${SYS}"*:1.0/gip0/gip0.* >/dev/null 2>&1; then
+IF0=$(printf '%s\n' "${SYS}"*:1.0 | head -1)
+if [ -d "$IF0/gip0" ] && ! compgen -G "$IF0/gip0/gip0.*" >/dev/null; then
   echo "gip:    gip0 present, NO CLIENT - pad is powered off. Press the Xbox button and re-run."; exit 2
 fi
 
