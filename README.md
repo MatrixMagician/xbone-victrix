@@ -116,8 +116,19 @@ DKMS must rebuild the module for each new kernel. The failure mode is nasty: a
 After a kernel upgrade:
 
 ```bash
-dkms status && ./verify.sh 20
+dkms status && ls /sys/bus/xone-gip/devices && ./verify.sh 20
 ```
+
+Read it in order:
+
+- No `installed` line, or no `gip0`: DKMS did not build. Reinstall.
+- `gip0` but no `gip0.0`: the driver is fine and the **pad is silent**. Press
+  the Xbox button, then run `verify.sh` again. This happened once across an
+  overnight shutdown and looked exactly like a failed rebuild. The kernel and
+  DKMS were both innocent, and reinstalling `xone` changed nothing. See
+  [`SPEC.md`](SPEC.md) §15.
+- `gip0.0` present but `verify.sh` fails: press something during the capture.
+  Reports are change-driven.
 
 See [`SPEC.md`](SPEC.md) §6 for the full requirements (R1-R5).
 

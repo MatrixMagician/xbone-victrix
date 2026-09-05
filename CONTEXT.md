@@ -60,6 +60,13 @@ boot. Presents identically to an Announce loop, because the in-tree driver
 reclaims the device and reaches Advertised without Streaming.
 _Avoid_: DKMS broke, module missing
 
+**Powered off**:
+A GIP device that is Enumerated and Bound with a healthy driver but never
+announces, so no client and no input node appear. Presents identically to a
+Silent rebuild failure. Pressing the Xbox button powers it on and it announces
+immediately. Not a driver or kernel state; reinstalling changes nothing.
+_Avoid_: dead, bricked, driver broken
+
 **Mapping drift**:
 A Streaming device whose controls arrive mislabelled, or with a stale per-game
 config applied. Changing the bound driver changes the device's name and SDL

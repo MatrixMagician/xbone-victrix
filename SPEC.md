@@ -413,6 +413,13 @@ Append an entry per working session. Keep newest last.
 - Issues #1-#5 filed with `ready-for-agent` / `ready-for-human` labels and
   native GitHub blocking edges.
 
+### 2026-09-05 — Kernel 7.1.13; pad silent, not a DKMS failure
+- DKMS carried `xone` onto 7.1.10 and 7.1.13 unattended; modules were present
+  at first boot of both. R2 holds.
+- Pad presented as detected-but-dead with a healthy driver. The Xbox button
+  woke it. Third failure mode, §15. R3 check amended.
+- `xone` was uninstalled and reinstalled before diagnosis. Unnecessary, harmless.
+
 ---
 
 ## 13. Intermittent Streaming without a driver change (2026-08-25)
@@ -546,7 +553,8 @@ Steam has generated a fresh mapping. Saved bindings under
 ### Still open
 
 - **AC3 / AC4 unproven.** Playable in both titles is untested, and no reboot
-  onto a new kernel has happened yet. §6 R1-R5 remain live.
+  onto a new kernel has happened yet. §6 R1-R5 remain live. *Superseded:*
+  two kernel reboots since, both carried the module. §15.
 - The §13 hang and input lag were never driver-level. Whether `xone` changes
   them is unknown. Issue #6.
 
@@ -576,3 +584,89 @@ Steam has generated a fresh mapping. Saved bindings under
   PASS) and AC3b (S.T.A.L.K.E.R. 2, tracked, not gating). Scope call pending.
 - Issue #6 closed. Cyberpunk hang resolved by `xone`; it only ever occurred in
   the §13 wedged state.
+
+---
+
+## 15. Powered-off pad: detected but silent with a healthy driver (2026-09-05)
+
+The pad went dead across an overnight shutdown. Kernel 7.1.13 arrived the same
+morning, so it looked like §6 R4. It was not. Recorded because this is the
+**third** state that presents as "detected but dead", and the first two (§3
+announce loop, §6 silent rebuild) both point at reinstalling `xone`, which
+does nothing here.
+
+### What was measured
+
+| Check | Result |
+|---|---|
+| `dkms status` | `xone/0.5.8, 7.1.13-200.fc44.x86_64, x86_64: installed` |
+| Installed source vs clone at v0.5.8 | identical apart from the version stamp |
+| Bound driver, both interfaces | `xone-wired` |
+| `/sys/bus/xone-gip/devices` | `gip0` only, **no `gip0.0` client** |
+| `xone_gip_gamepad` | not loaded (nothing to bind to); loads cleanly by hand |
+| usbmon across an unbind/bind | reset, descriptor reads, one pending IN URB, then nothing |
+| In-tree `xpad` bound as a probe | 6 rounds of init and power-on sent, **zero bytes back** |
+| ANNOUNCE from pad, either driver | **0** |
+
+The pad acknowledged every USB-level transfer. Its GIP layer said nothing, to
+either driver, before and after a physical replug. This is not the §3 announce
+loop: there was no announce at all.
+
+### The kernel was exonerated by the journal
+
+| Boot | Kernel | Outcome |
+|---|---|---|
+| 26 Aug to 5 Sep 00:44 | 7.1.10, `xone` | input device created on three boots |
+| 5 Sep 09:40 | 7.1.10, same modules | silent |
+| 5 Sep 09:43 | 7.1.10 | `dnf` installs 7.1.13 (history txn 102) |
+| 5 Sep 09:46 onward | 7.1.13 | silent, before and after a `xone` reinstall |
+
+The failure predates the kernel install by three minutes and occurred on a
+kernel/module pair that had produced a working input device nine hours
+earlier. The overnight offline update (txn 101) contained no kernel, firmware,
+udev or USB packages.
+
+The 26 Aug journal shows the same shape once before: pad enumerated at boot,
+input device only 7 h later. Suggestive, not measured.
+
+### Recovery
+
+**Press the Xbox button.** The pad announced immediately, `gip0.0` appeared,
+`xone_gip_gamepad` autoloaded, and `./verify.sh 45` passed: 21794 events, all
+8 axes, D-pad included. No reboot, replug or reinstall was needed.
+
+Consistent with GIP power semantics: a pad that is powered off at the protocol
+level stays enumerated but silent until the guide button powers it on. Why it
+ended up there across a shutdown is not known. `xone_wired` has no shutdown
+hook and never sends a power-off; only `xone_dongle` does.
+
+### Discriminator
+
+`xpad` sends a GIP power-on unprompted; `xone` waits for ANNOUNCE. A pad that
+ignores `xpad`'s power-on is off or wedged at firmware level, not misdriven.
+Binding it for five seconds under usbmon separates pad state from driver state
+without touching DKMS:
+
+```
+echo 5-1:1.0 > /sys/bus/usb/drivers/xone-wired/unbind
+modprobe xpad && echo 5-1:1.0 > /sys/bus/usb/drivers/xpad/bind
+# watch usbmon; then reverse: unbind xpad, rmmod xpad, bind xone-wired
+```
+
+### R3 amended
+
+The post-upgrade check is now:
+
+```
+dkms status && ls /sys/bus/xone-gip/devices && ./verify.sh 20
+```
+
+Read in order:
+
+- no `installed` line, or no `gip0`: DKMS did not build. §6 R4.
+- `gip0` without `gip0.0`: driver is fine, pad is silent. Xbox button, re-run.
+- `gip0.0` present and `verify.sh` fails: nothing was pressed during the
+  capture. Reports are change-driven (§13).
+
+R2 is confirmed in passing: the modules were present at first boot of both
+7.1.10 and 7.1.13 without intervention.
