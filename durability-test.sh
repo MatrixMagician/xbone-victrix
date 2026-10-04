@@ -41,9 +41,9 @@ PY
 )
   drv=$(readlink -f "$SYS$DEV:1.0/driver" 2>/dev/null | xargs -r basename)
   if [ "$auth" -ge 2 ] || [ "$ann" -ge 2 ]; then
-    echo "  cycle $i: BROKEN   driver=$drv auth_retries=$auth announces=$ann"
+    echo "  cycle $i: BROKEN   driver=$drv auth_retries=$auth announces=$ann inputs=$inp"
   else
-    echo "  cycle $i: NO-LOOP  driver=$drv auth_retries=$auth announces=$ann (UNCONFIRMED: silence is not proof, run ./verify.sh with input)"
+    echo "  cycle $i: NO-LOOP  driver=$drv auth_retries=$auth announces=$ann inputs=$inp (UNCONFIRMED: silence is not proof, run ./verify.sh with input)"
     PASS=$((PASS+1))
   fi
   rm -f "$T"
